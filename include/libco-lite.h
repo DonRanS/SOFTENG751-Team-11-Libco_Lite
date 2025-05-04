@@ -28,6 +28,7 @@ class CoroutineScheduler
         bool IsCoroutineAlive(int id) const;
         uintptr_t Yield(uintptr_t y = 0);
         int GetRunningCoroutine() const;
+        void CleanupAbandonedCoroutines();
 int GetCoroutineCount() const;
     private:
         CoroutineScheduler(const CoroutineScheduler&);

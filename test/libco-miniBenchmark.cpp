@@ -1,3 +1,4 @@
+// Only for Linux or BSD-like systems
 #include "../include/libco-lite.h"
 #include <stdio.h>
 #include <stdlib.h>

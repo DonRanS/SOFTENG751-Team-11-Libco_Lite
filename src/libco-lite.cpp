@@ -108,8 +108,13 @@ CoroutineScheduler::SchedulerImpl::~SchedulerImpl()
 
     while (it != id2routine_.end())
     {
-        if (it->second) free(it->second);
-        it++; // Add iterator increment
+        if (it->second) 
+        {
+            free(it->second);
+            it->second = NULL; // Avoid dangling pointer
+        }
+      //  it++; // Add iterator increment 
+         ++it; // Avoid dangling pointer
     }
 }
 
@@ -152,7 +157,13 @@ void CoroutineScheduler::SchedulerImpl::Schedule(void* arg)
 
 uintptr_t CoroutineScheduler::SchedulerImpl::ResumeCoroutine(int id, uintptr_t y)
 {
-    coroutine* cor = id2routine_[id];
+    // potential memory leak here, if coroutine is not destroyed after exit
+    auto it = id2routine_.find(id);
+    if (it == id2routine_.end()) return 0;
+    coroutine * cor = it->second;
+    // END of potential memory leak change.
+
+  //  coroutine* cor = id2routine_[id];
     if (cor == NULL || cor->status == CORO_RUNNING) return 0;
 
     cor->yield = y;
@@ -165,7 +176,8 @@ uintptr_t CoroutineScheduler::SchedulerImpl::ResumeCoroutine(int id, uintptr_t y
                 cor->status = CORO_RUNNING;
                 cor->cxt.uc_stack.ss_sp = cor->stack;
                 cor->cxt.uc_stack.ss_size = stacksize_;
-                // sucessor context.
+                // successor context. jump to mainContext_ when coroutine exits.
+              //  cor->cxt.uc_stack.ss_flags = 0; // reset flags
                 cor->cxt.uc_link = &mainContext_;
 
                 running_ = id;
@@ -178,7 +190,7 @@ uintptr_t CoroutineScheduler::SchedulerImpl::ResumeCoroutine(int id, uintptr_t y
             {
                 running_ = id;
                 cor->status = CORO_RUNNING;
-                swapcontext(&mainContext_, &cor->cxt);
+                swapcontext(&mainContext_, &cor->cxt);  // context switch to coroutine
             }
             break;
         default:
@@ -188,8 +200,13 @@ uintptr_t CoroutineScheduler::SchedulerImpl::ResumeCoroutine(int id, uintptr_t y
     uintptr_t ret = cor->yield;
     cor->yield = 0;
 
-    if (running_ == -1 && cor->status == CORO_EXITED) DestroyCoroutine(id);
-
+    if (running_ == -1 && cor->status == CORO_EXITED) {
+    DestroyCoroutine(id);
+    } 
+    // shouldnt rearm if coroutine is exited
+    //else if (cor->status == CORO_EXITED) {
+    //    cor->status = CORO_READY;
+    //}
     return ret;
 }
 
@@ -216,17 +233,36 @@ int CoroutineScheduler::SchedulerImpl::CreateCoroutine(CoroutineScheduler::CoFun
     coroutine* cor = (coroutine*)malloc(sizeof(coroutine) + stacksize_);
 
     if (cor == NULL) return -1;
-
+// allocate memory for coroutine
+    // dont trust auto initialization, memset it to 0
+    memset(cor, 0, sizeof(coroutine)); // initialize coroutine structure
+    // end of change
     cor->arg  = arg;
     cor->func = func;
     cor->yield = 0;
     cor->status = CORO_READY;
-
+  //  assert(cor!= NULL);
     int index = index_++;
     id2routine_[index] = cor;
 
     return index;
 }
+// New implementation to clean up abandoned coroutines
+void CoroutineScheduler::SchedulerImpl::CleanupAbandonedCoroutines() 
+{
+    auto it = id2routine_.begin();
+    while (it != id2routine_.end()) {
+        if (it->second && it->second->status == CORO_EXITED) {
+            free(it->second);
+            it = id2routine_.erase(it);
+        } else {
+            ++it;
+        }
+    }
+}
+
+
+
 CoroutineScheduler::CoroutineScheduler(int stacksize)
     :impl_(new SchedulerImpl(stacksize))
 {
@@ -246,6 +282,12 @@ int CoroutineScheduler::CreateCoroutine(CoFunc func, void* arg)
 int CoroutineScheduler::DestroyCoroutine(int id)
 {
     return impl_->DestroyCoroutine(id);
+}
+
+// New interface to clean up abandoned coroutines
+void CoroutineScheduler::CleanupAbandonedCoroutines()
+{
+    impl_->CleanupAbandonedCoroutines();
 }
 
 uintptr_t CoroutineScheduler::ResumeCoroutine(int id, uintptr_t y)

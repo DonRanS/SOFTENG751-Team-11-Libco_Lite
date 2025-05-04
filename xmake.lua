@@ -40,6 +40,7 @@ target("libco-lite")
     end
 
 -- Example application target
+-- adjust test targets accordingly
 target("minimumTest")
     set_kind("binary")
     add_deps("libco-lite")
