@@ -1,7 +1,7 @@
 // Basic test for the coroutine library. Example of creating and running two coroutines that yield and resume each other.
 // This test is designed to be simple and straightforward, focusing on the basic functionality of the coroutine library.
 
-#include "../src/libco-lite.h"
+#include "../include/libco-lite.h"
 #include <iostream>
 
 using namespace std;
