@@ -233,7 +233,13 @@ uintptr_t CoroutineScheduler::SchedulerImpl::Yield(uintptr_t y)
 }
 int CoroutineScheduler::SchedulerImpl::CreateCoroutine(CoroutineScheduler::CoFunc func, void* arg)
 {
+    #ifdef __apple__
+    // On macOS, we need to define _XOPEN_SOURCE to use ucontext.h
+    coroutine* cor = (coroutine*)aligned_alloc(16, sizeof(coroutine) + stacksize_);
+#else
+    // On Linux, we can use malloc directly
     coroutine* cor = (coroutine*)malloc(sizeof(coroutine) + stacksize_);
+#endif
 
     if (cor == NULL) return -1;
 // allocate memory for coroutine
