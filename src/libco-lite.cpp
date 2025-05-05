@@ -2,7 +2,7 @@
 // WARNING: This code is designed for Linux and Mac OS X(probably... I have no MAC device) only.
 // It uses ucontext.h which is not available on Windows.
 // Windows users should use other coroutine libraries like boost::coroutine or libco.
-//TODO : add windows support
+//TODO : add windows support?
 //TODO: use epoll on linux and kqueue on mac os x to implement coroutine scheduler, windows can use IOCP
 //Coroutine is designed for IO multiplexing, not for CPU multiplexing. So it is not a thread library. It is a user level thread library.
 // All coroutines are running in the same thread. No thread-safe issues here.   
@@ -15,6 +15,7 @@
 #include <map>
 #include <stdlib.h>
 #include <assert.h>
+#include <cstring>
 
 #ifdef __linux__
 // Include ucontext.h on Linux
@@ -60,6 +61,8 @@ class CoroutineScheduler::SchedulerImpl
         bool IsCoroutineAlive(int id) const;
 	int GetRunningCoroutine() const;
 	int GetCoroutineCount() const;
+	void CleanupAbandonedCoroutines(); 
+
     private:
 
         SchedulerImpl(const SchedulerImpl&);
