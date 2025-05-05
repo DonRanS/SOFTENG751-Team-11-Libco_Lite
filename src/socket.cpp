@@ -1,34 +1,25 @@
-// co_socket.h  
-// 2025-05-05: Initial version, not tested yet
+// 2025-05-05 02:21:00 Initial version, not tested yet
 
 // Coroutine-friendly socket operations
 // This file provides coroutine-friendly socket operations for TCP connections.
 // It includes functions for creating sockets, connecting, accepting, sending, and receiving data in a non-blocking manner.
 // For Linux and macOS platforms only.
-#ifndef CO_SOCKET_H
-#define CO_SOCKET_H
 
-#include "../include/libco-lite.h"
+//  2025-05-05 21:21:00 Tested. Functions are working as expected.
 #include "../include/socket.h"
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#include <fcntl.h>
-#include <unistd.h>
-#include <errno.h>
-#include <string.h>
-
+#include <sys/select.h>  // For select() and fd_set
+#include <iostream>
 namespace co_socket {
 
 // Set socket to non-blocking mode
-inline int set_nonblocking(int sockfd) {
+int set_nonblocking(int sockfd) {
     int flags = fcntl(sockfd, F_GETFL, 0);
     if (flags == -1) return -1;
-    return fcntl(sockfd, F_SETFL, flags | O_NONBLOCKING);
+    return fcntl(sockfd, F_SETFL, flags | O_NONBLOCK);
 }
 
 // Create a TCP socket
-inline int create_tcp_socket() {
+int create_tcp_socket() {
     int sockfd = socket(AF_INET, SOCK_STREAM, 0);
     if (sockfd < 0) return -1;
     
@@ -49,7 +40,7 @@ inline int create_tcp_socket() {
 }
 
 // Coroutine-friendly connect
-inline bool co_connect(CoroutineScheduler& scheduler, int sockfd, const struct sockaddr* addr, socklen_t addrlen) {
+bool co_connect(CoroutineScheduler& scheduler, int sockfd, const struct sockaddr* addr, socklen_t addrlen) {
     // Attempt non-blocking connect
     int ret = connect(sockfd, addr, addrlen);
     
@@ -103,7 +94,7 @@ inline bool co_connect(CoroutineScheduler& scheduler, int sockfd, const struct s
 }
 
 // Coroutine-friendly accept
-inline int co_accept(CoroutineScheduler& scheduler, int sockfd, struct sockaddr* addr, socklen_t* addrlen) {
+int co_accept(CoroutineScheduler& scheduler, int sockfd, struct sockaddr* addr, socklen_t* addrlen) {
     while (true) {
         int client_fd = accept(sockfd, addr, addrlen);
         
@@ -124,10 +115,11 @@ inline int co_accept(CoroutineScheduler& scheduler, int sockfd, struct sockaddr*
 }
 
 // Coroutine-friendly send
-inline ssize_t co_send(CoroutineScheduler& scheduler, int sockfd, const void* buf, size_t len, int flags) {
+ssize_t co_send(CoroutineScheduler& scheduler, int sockfd, const void* buf, size_t len, int flags) {
     size_t total_sent = 0;
     const char* buffer = static_cast<const char*>(buf);
-    
+  //  std::cout << "Sending/Receiving data, size: " << len << std::endl;
+
     while (total_sent < len) {
         ssize_t sent = send(sockfd, buffer + total_sent, len - total_sent, flags | MSG_DONTWAIT);
         
@@ -148,28 +140,61 @@ inline ssize_t co_send(CoroutineScheduler& scheduler, int sockfd, const void* bu
 }
 
 // Coroutine-friendly recv
-inline ssize_t co_recv(CoroutineScheduler& scheduler, int sockfd, void* buf, size_t len, int flags) {
+ssize_t co_recv(CoroutineScheduler& scheduler, int sockfd, void* buf, size_t len, int flags) {
+    // Add debug output
+    std::cout << "co_recv: Starting to receive data on fd " << sockfd << std::endl;
+    
     while (true) {
+        // Try to receive data
         ssize_t received = recv(sockfd, buf, len, flags | MSG_DONTWAIT);
         
-        if (received >= 0) {
-            // Data received (or connection closed with 0 bytes)
+        if (received > 0) {
+            // Successfully received data
+            std::cout << "co_recv: Received " << received << " bytes on fd " << sockfd << std::endl;
             return received;
+        } 
+        
+        if (received == 0) {
+            // Connection closed by peer
+            std::cout << "co_recv: Connection closed by peer on fd " << sockfd << std::endl;
+            return 0;
         }
         
+        // Error occurred
         if (errno != EAGAIN && errno != EWOULDBLOCK) {
-            // Real error occurred
+            // Real error, not just "would block"
+            std::cerr << "co_recv: Error on fd " << sockfd << ": " << strerror(errno) << std::endl;
             return -1;
         }
         
-        // Would block, yield to other coroutines
+        // Would block - use select to wait for readiness
+        fd_set readfds;
+        FD_ZERO(&readfds);
+        FD_SET(sockfd, &readfds);
+        
+        // Check if data is available without blocking
+        struct timeval tv = {0, 0};
+        int ready = select(sockfd + 1, &readfds, NULL, NULL, &tv);
+        
+        if (ready > 0) {
+            // Socket is ready, try receiving again immediately
+            std::cout << "co_recv: Socket ready, re-trying" << std::endl;
+            continue;
+        }
+        
+        // Socket not ready, yield and try again later
+       // std::cout << "co_recv: Socket would block, yielding coroutine" << std::endl;
         scheduler.Yield(0);
     }
 }
 
 // Helper to create and bind a server socket
-inline int create_server_socket(const char* ip, int port) {
-    int sockfd = create_tcp_socket();
+int create_server_socket(const char* ip, int port) {
+    // Change this line:
+    // int sockfd = create_tcp_socket();
+    // To this:
+    int sockfd = co_socket::create_tcp_socket();
+    
     if (sockfd < 0) return -1;
     
     struct sockaddr_in addr;
@@ -195,5 +220,3 @@ inline int create_server_socket(const char* ip, int port) {
 }
 
 } // namespace co_socket
-
-#endif // CO_SOCKET_H
