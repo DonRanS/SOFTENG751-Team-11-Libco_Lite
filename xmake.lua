@@ -34,7 +34,7 @@ target("co-lite")
 -- Socket library target (socket implementation)
 target("co-socket")
     set_kind("static")
-    add_files("src/socket.cpp")
+    add_files("src/co_socket.cpp")
     add_includedirs("include")
     add_deps("co-lite")
 

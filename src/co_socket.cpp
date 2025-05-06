@@ -6,9 +6,16 @@
 // For Linux and macOS platforms only.
 
 //  2025-05-05 21:21:00 Tested. Functions are working as expected.
-#include "../include/socket.h"
+
+// 2025-05-06 16:00:00 Added preprocessor directives for verbose output and debugging.
+#include "../include/co_socket.h"
 #include <sys/select.h>  // For select() and fd_set
 #include <iostream>
+
+// Uncomment the following line to enable verbose output for debugging
+//# define VERBOSE
+
+
 namespace co_socket {
 
 // Set socket to non-blocking mode
@@ -141,22 +148,28 @@ ssize_t co_send(CoroutineScheduler& scheduler, int sockfd, const void* buf, size
 
 // Coroutine-friendly recv
 ssize_t co_recv(CoroutineScheduler& scheduler, int sockfd, void* buf, size_t len, int flags) {
-    // Add debug output
+   #ifdef VERBOSE
     std::cout << "co_recv: Starting to receive data on fd " << sockfd << std::endl;
-    
+    #endif
     while (true) {
         // Try to receive data
         ssize_t received = recv(sockfd, buf, len, flags | MSG_DONTWAIT);
         
         if (received > 0) {
             // Successfully received data
+            #ifdef VERBOSE
+
             std::cout << "co_recv: Received " << received << " bytes on fd " << sockfd << std::endl;
+            #endif
+
             return received;
         } 
         
         if (received == 0) {
-            // Connection closed by peer
+            #ifdef VERBOSE
+
             std::cout << "co_recv: Connection closed by peer on fd " << sockfd << std::endl;
+            #endif
             return 0;
         }
         
@@ -178,7 +191,9 @@ ssize_t co_recv(CoroutineScheduler& scheduler, int sockfd, void* buf, size_t len
         
         if (ready > 0) {
             // Socket is ready, try receiving again immediately
+            #ifdef VERBOSE
             std::cout << "co_recv: Socket ready, re-trying" << std::endl;
+            #endif
             continue;
         }
         

@@ -6,13 +6,14 @@
 // 2025-05-05 21:24:00 Tested. Functions are working as expected.
 
 #include "../include/libco-lite.h"
-#include "../include/socket.h"
+#include "../include/co_socket.h"
 #include <iostream>
 #include <string.h>
 #include <unistd.h>
 #include <vector>
 #include <algorithm>
 
+#define LISTENING_PORT 17951
 #define SAFEWORD "excommunicado"
 
 uintptr_t echo_client(void* arg) {
@@ -62,7 +63,7 @@ uintptr_t echo_client(void* arg) {
 // Wait for and accept connections
 uintptr_t accept_connections(void* arg) {
     CoroutineScheduler* scheduler = static_cast<CoroutineScheduler*>(arg);
-    const int PORT = 17951;
+    const int PORT = LISTENING_PORT;
     
     int server_fd = co_socket::create_server_socket(NULL, PORT);
     if (server_fd < 0) {
@@ -98,11 +99,12 @@ uintptr_t accept_connections(void* arg) {
         std::cout << "New client connected: " << client_ip << ":" << client_port 
                   << " (fd: " << client_fd << ")" << std::endl;
         
-        // Create parameters for the echo client coroutine
-        auto* params = new std::pair<CoroutineScheduler*, int>(scheduler, client_fd);
+        // resolved issues: auto* to initialize a sturct is not allowed in C++11...
+        // original: auto* client_ctx = new struct{......}
+        auto* client_ctx = new std::pair<CoroutineScheduler*, int>(scheduler, client_fd);
         
         // Start a new coroutine to handle this client
-        int coro_id = scheduler->CreateCoroutine(echo_client, params);
+        int coro_id = scheduler->CreateCoroutine(echo_client, client_ctx);
         std::cout << "Created client handler coroutine with ID: " << coro_id << std::endl;
         
         // Yield to give the new coroutine a chance to run

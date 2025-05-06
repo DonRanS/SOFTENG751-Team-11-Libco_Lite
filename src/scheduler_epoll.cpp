@@ -1,9 +1,9 @@
 // Impl of EpollScheduler and coroutine socket functions
 // Linux and BSD-based systems only
 // Created on 2025-05-06 14:00:00
-
+// Tested on 2025-05-06 15:45:00
 #include "../include/scheduler_epoll.h"
-#include "../include/socket.h"
+#include "../include/co_socket.h"
 #include <unistd.h>
 #include <iostream>
 #include <string.h>
@@ -52,6 +52,7 @@ void EpollScheduler::RegisterEvent(int fd, uint32_t events, int coro_id, Corouti
 
 void EpollScheduler::UnregisterEvent(int fd) {
     auto it = fd_to_coro_.find(fd);
+
     if (it == fd_to_coro_.end()) {
         std::cerr << "No such fd: " << fd << std::endl;
         return;

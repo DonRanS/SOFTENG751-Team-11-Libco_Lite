@@ -1,5 +1,6 @@
-
 // 2025-05-05: Initial version, not tested yet
+// 2025-05-06: Tested. Functions are working as expected.
+// 2025-05-06 16:00:00 Passed test on Ubuntu 22.04 LTS; Incoporated epoll into the test
 
 #include <sys/socket.h>
 #include "./libco-lite.h"
@@ -35,4 +36,3 @@ int create_server_socket(const char* ip, int port);
 
 } // namespace co_socket
 
-#endif // LIBCO_LITE_H

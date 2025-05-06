@@ -2,10 +2,15 @@
 // Linux and BSD-based systems only
 // Created on 2025-05-06 14:00:00
 
-#ifndef EPOLL_SCHEDULER_H
-#define EPOLL_SCHEDULER_H
-#include <sys/socket.h>  
+// Tested on 2025-05-06 15:45:00
+// change: yield timing squence
+// event registration and unregistration
+// switched from system socket to coroutine socket
+#ifndef SCHEDULER_EPOLL_H
+#define SCHEDULER_EPOLL_H
+
 #include "./libco-lite.h"
+#include "./co_socket.h"
 #include <sys/epoll.h>
 #include <map>
 #include <vector>
@@ -39,7 +44,7 @@ private:
 
 namespace co_socket_epoll {
 
-// Epoll-based socket accept
+// Epoll-based socket accept - integrates with your existing co_socket
 int co_accept(CoroutineScheduler& scheduler, EpollScheduler& epoll_scheduler, 
               int sockfd, struct sockaddr* addr, socklen_t* addrlen);
 
@@ -57,4 +62,4 @@ bool co_connect(CoroutineScheduler& scheduler, EpollScheduler& epoll_scheduler,
 
 } // namespace co_socket_epoll
 
-#endif // EPOLL_SCHEDULER_H
+#endif // SCHEDULER_EPOLL_H
