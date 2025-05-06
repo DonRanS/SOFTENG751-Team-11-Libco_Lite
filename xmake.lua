@@ -1,5 +1,5 @@
 -- Project name and version
-set_project("libco-lite")
+set_project("libco-experimental-socket")
 set_version("1.0.0")
 
 -- Set language standards
@@ -13,52 +13,75 @@ if is_plat("linux") then
     add_defines("__linux__")
 elseif is_plat("macosx") then
     add_defines("_XOPEN_SOURCE")
+    add_cxflags("-Wno-deprecated-declarations")
 end
 
--- Main library target
-target("libco-lite")
+-- Main library target (coroutine implementation)
+target("co-lite")
     set_kind("static")
+    add_files("src/libco-lite.cpp")
+    add_includedirs("include")
     
-    -- Source files - use explicit file names
-    add_files("./src/libco-lite.cpp")
-    
-    -- Header files
-    add_headerfiles("./include/libco-lite.h")
-    
-    -- Include directories
-    add_includedirs(".")
-    
-    -- Set optimization level for release mode
     if is_mode("release") then
         set_optimize("fastest")
     end
     
-    -- Set debugging symbols for debug mode
     if is_mode("debug") then
         set_symbols("debug")
         add_defines("DEBUG")
     end
 
--- Example application target
--- adjust test targets accordingly
-target("minimumTest")
+-- Socket library target (socket implementation)
+target("co-socket")
+    set_kind("static")
+    add_files("src/socket.cpp")
+    add_includedirs("include")
+    add_deps("co-lite")
+
+-- Epoll scheduler library target
+target("co-epoll")
+    set_kind("static")
+    add_files("src/scheduler_epoll.cpp")
+    add_includedirs("include")
+    add_deps("co-lite", "co-socket")
+    
+    -- Only build on Linux as epoll is Linux-specific
+    if is_plat("linux") then
+        add_defines("USE_EPOLL")
+    else
+        on_load(function (target)
+            target:set("enabled", false)
+        end)
+    end
+
+-- Echo server application (original version)
+target("echo-server")
     set_kind("binary")
-    add_deps("libco-lite")
-    add_files("./test/libco-minimumTest.cpp")
-    add_includedirs(".")
+    add_files("test/libco-socketTest.cpp")
+    add_includedirs("include")
     
-    -- Link against the coroutine library
-    add_links("libco-lite")
+    -- Link with both libraries
+    add_deps("co-lite", "co-socket")
     
-    -- Link against system libraries
+    -- Explicitly link system dependencies
     if is_plat("linux") then
         add_syslinks("pthread")
     end
 
--- Installation configuration
-target("install")
-    set_kind("phony")
-    on_install(function (target)
-        os.cp("*.h", "$(installdir)/include")
-        os.cp("$(buildir)/libco-lite.a", "$(installdir)/lib")
-    end)
+-- Echo server with epoll (new test application)
+target("echo-server-epoll")
+    set_kind("binary")
+    add_files("test/libco-epollTest.cpp")
+    add_includedirs("include")
+    
+    -- Link with all libraries
+    add_deps("co-lite", "co-socket", "co-epoll")
+    
+    -- Only build on Linux
+    if is_plat("linux") then
+        add_syslinks("pthread")
+    else
+        on_load(function (target)
+            target:set("enabled", false)
+        end)
+    end
