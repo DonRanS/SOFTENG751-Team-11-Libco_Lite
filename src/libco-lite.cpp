@@ -1,10 +1,16 @@
 
 // WARNING: This code is designed for Linux and Mac OS X(probably... I have no MAC device) only.
 // It uses ucontext.h which is not available on Windows.
+
 // Windows users should use other coroutine libraries like boost::coroutine or libco.
+
+
+//TODO : add windows support? (Nah, Windows needs Boost.context or other libraries. Unnecessary to reinvent the wheel.)
 //TODO : add windows support?
+libco-lite
 //TODO: use epoll on linux and kqueue on mac os x to implement coroutine scheduler, windows can use IOCP
-//Coroutine is designed for IO multiplexing, not for CPU multiplexing. So it is not a thread library. It is a user level thread library.
+// Reply: linux epoll is working. MacOS not tested yet. Windows wont be supported.
+//Coroutine is designed for IO multiplexing, not for CPU multiplexing. So it is not a thread library. It is a user level "thread" library.
 // All coroutines are running in the same thread. No thread-safe issues here.   
 
 
