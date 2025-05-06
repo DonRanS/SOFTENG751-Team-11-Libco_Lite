@@ -1,6 +1,7 @@
 
 # Project Team 11 - Libco Lite Linux
-## This branch is experimental, see **libco-lite** for the latest milestone
+## This branch is experimental, for Event polling scheduler.
+## see **libco-lite** for the latest milestone
 ## Overview
 This project is part of the **Libco Lite Linux** initiative, developed by **Team 11**. It aims to provide lightweight, efficient, and modular solutions for Linux-based systems.
 This project is totally irrelevant to THE **libco** library, much more primitive...
