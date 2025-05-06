@@ -4,7 +4,10 @@
 
 // Windows users should use other coroutine libraries like boost::coroutine or libco.
 
+
 //TODO : add windows support? (Nah, Windows needs Boost.context or other libraries. Unnecessary to reinvent the wheel.)
+//TODO : add windows support?
+libco-lite
 //TODO: use epoll on linux and kqueue on mac os x to implement coroutine scheduler, windows can use IOCP
 // Reply: linux epoll is working. MacOS not tested yet. Windows wont be supported.
 //Coroutine is designed for IO multiplexing, not for CPU multiplexing. So it is not a thread library. It is a user level "thread" library.
@@ -236,7 +239,13 @@ uintptr_t CoroutineScheduler::SchedulerImpl::Yield(uintptr_t y)
 }
 int CoroutineScheduler::SchedulerImpl::CreateCoroutine(CoroutineScheduler::CoFunc func, void* arg)
 {
+    #ifdef __apple__
+    // On macOS, we need to define _XOPEN_SOURCE to use ucontext.h
+    coroutine* cor = (coroutine*)aligned_alloc(16, sizeof(coroutine) + stacksize_);
+#else
+    // On Linux, we can use malloc directly
     coroutine* cor = (coroutine*)malloc(sizeof(coroutine) + stacksize_);
+#endif
 
     if (cor == NULL) return -1;
 // allocate memory for coroutine

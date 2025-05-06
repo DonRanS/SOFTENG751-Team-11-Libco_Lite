@@ -2,6 +2,15 @@
 set_project("libco-experimental-socket")
 set_version("1.0.0")
 
+
+-- Add platform-specific flags
+-- force to use depreceated declarations on macOS
+if is_plat("macosx") then
+    add_defines("_XOPEN_SOURCE")
+    add_cxflags("-Wno-deprecated-declarations")
+end
+
+
 -- Set language standards
 set_languages("c++11")
 
