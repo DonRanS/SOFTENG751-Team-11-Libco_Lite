@@ -1,13 +1,24 @@
 // Impl of EpollScheduler and coroutine socket functions
 // Linux and BSD-based systems only
 // Created on 2025-05-06 14:00:00
-// Tested on 2025-05-06 15:45:00
+// Tested on 2025-05-06 15:20:00
+// Improved EpollScheduler implementation
+// Linux and BSD-based systems only
+
+// Improved EpollScheduler implementation
+// Linux and BSD-based systems only
+
+// 2025-05-08 00:55:00 refactored the code to use a hash set to track existing IDs
+
 #include "../include/scheduler_epoll.h"
-#include "../include/co_socket.h"
+#include "../include/co_socket.h"  // Add this to get access to set_nonblocking
 #include <unistd.h>
 #include <iostream>
 #include <string.h>
 #include <errno.h>
+#include <sys/socket.h>  // For socklen_t, accept, and other socket functions
+#include <sys/types.h>   // For additional type definitions
+#include <fcntl.h>       // For fcntl function and flags
 
 EpollScheduler::EpollScheduler() {
     // Create epoll instance
@@ -26,22 +37,24 @@ EpollScheduler::~EpollScheduler() {
 
 void EpollScheduler::RegisterEvent(int fd, uint32_t events, int coro_id, CoroutineScheduler* scheduler) {
     struct epoll_event ev;
-    ev.events = events | EPOLLET;  // Edge-triggered mode
+    ev.events = events;  // No edge-triggered mode by default
     ev.data.fd = fd;
 
-    if (fd_to_coro_.find(fd) == fd_to_coro_.end()) {
+    // Store coroutine info with the fd
+    EventData event_data = {coro_id, scheduler, events};
+
+    auto it = fd_to_data_.find(fd);
+    if (it == fd_to_data_.end()) {
         // New fd registration
-        std::vector<std::pair<uint32_t, std::pair<int, CoroutineScheduler*>>> coros;
-        coros.push_back(std::make_pair(events, std::make_pair(coro_id, scheduler)));
-        fd_to_coro_[fd] = coros;
+        fd_to_data_[fd] = event_data;
         
         if (epoll_ctl(epoll_fd_, EPOLL_CTL_ADD, fd, &ev) == -1) {
             perror("epoll_ctl: EPOLL_CTL_ADD");
             exit(EXIT_FAILURE);
         }
     } else {
-        // Update existing fd
-        fd_to_coro_[fd].push_back(std::make_pair(events, std::make_pair(coro_id, scheduler)));
+        // Update existing fd with new event mask
+        it->second = event_data;
         
         if (epoll_ctl(epoll_fd_, EPOLL_CTL_MOD, fd, &ev) == -1) {
             perror("epoll_ctl: EPOLL_CTL_MOD");
@@ -51,10 +64,10 @@ void EpollScheduler::RegisterEvent(int fd, uint32_t events, int coro_id, Corouti
 }
 
 void EpollScheduler::UnregisterEvent(int fd) {
-    auto it = fd_to_coro_.find(fd);
-
-    if (it == fd_to_coro_.end()) {
-        std::cerr << "No such fd: " << fd << std::endl;
+    auto it = fd_to_data_.find(fd);
+    
+    if (it == fd_to_data_.end()) {
+        // Already unregistered, nothing to do
         return;
     }
 
@@ -65,26 +78,23 @@ void EpollScheduler::UnregisterEvent(int fd) {
     }
 
     // Remove from map
-    fd_to_coro_.erase(it);
+    fd_to_data_.erase(it);
 }
 
 bool EpollScheduler::ResumeCoroutine(int fd, uint32_t events) {
-    auto it = fd_to_coro_.find(fd);
-    if (it == fd_to_coro_.end()) {
+    auto it = fd_to_data_.find(fd);
+    if (it == fd_to_data_.end()) {
         return false;
     }
 
-    auto& coros = it->second;
-    for (auto& pair : coros) {
-        if (pair.first & events) {
-            // Found matching event, resume coroutine
-            CoroutineScheduler* scheduler = pair.second.second;
-            int coro_id = pair.second.first;
-            
-            if (scheduler->IsCoroutineAlive(coro_id)) {
-                scheduler->ResumeCoroutine(coro_id);
-                return true;
-            }
+    // Check if the requested event matches our interest
+    if (it->second.events & events) {
+        CoroutineScheduler* scheduler = it->second.scheduler;
+        int coro_id = it->second.coro_id;
+        
+        if (scheduler->IsCoroutineAlive(coro_id)) {
+            scheduler->ResumeCoroutine(coro_id);
+            return true;
         }
     }
     
@@ -92,7 +102,7 @@ bool EpollScheduler::ResumeCoroutine(int fd, uint32_t events) {
 }
 
 void EpollScheduler::Poll(int timeout_ms) {
-    const int MAX_EVENTS = 64;
+    const int MAX_EVENTS = 8192;
     struct epoll_event events[MAX_EVENTS];
     
     int nfds = epoll_wait(epoll_fd_, events, MAX_EVENTS, timeout_ms);
@@ -129,7 +139,8 @@ int co_accept(CoroutineScheduler& scheduler, EpollScheduler& epoll_scheduler,
         
         if (client_fd >= 0) {
             // Successfully accepted a connection
-            co_socket::set_nonblocking(client_fd);
+            int flags = fcntl(client_fd, F_GETFL, 0);
+            fcntl(client_fd, F_SETFL, flags | O_NONBLOCK);
             return client_fd;
         }
         
@@ -142,9 +153,6 @@ int co_accept(CoroutineScheduler& scheduler, EpollScheduler& epoll_scheduler,
         int current_coro = scheduler.GetRunningCoroutine();
         epoll_scheduler.WaitForRead(sockfd, current_coro, &scheduler);
         scheduler.Yield();
-        
-        // Unregister when we wake up
-        epoll_scheduler.UnregisterEvent(sockfd);
     }
 }
 
@@ -167,9 +175,6 @@ ssize_t co_recv(CoroutineScheduler& scheduler, EpollScheduler& epoll_scheduler,
         int current_coro = scheduler.GetRunningCoroutine();
         epoll_scheduler.WaitForRead(sockfd, current_coro, &scheduler);
         scheduler.Yield();
-        
-        // Unregister when we wake up
-        epoll_scheduler.UnregisterEvent(sockfd);
     }
 }
 
@@ -189,9 +194,6 @@ ssize_t co_send(CoroutineScheduler& scheduler, EpollScheduler& epoll_scheduler,
                 int current_coro = scheduler.GetRunningCoroutine();
                 epoll_scheduler.WaitForWrite(sockfd, current_coro, &scheduler);
                 scheduler.Yield();
-                
-                // Unregister when we wake up
-                epoll_scheduler.UnregisterEvent(sockfd);
             } else {
                 // Real error occurred
                 return -1;
@@ -204,6 +206,10 @@ ssize_t co_send(CoroutineScheduler& scheduler, EpollScheduler& epoll_scheduler,
 
 bool co_connect(CoroutineScheduler& scheduler, EpollScheduler& epoll_scheduler,
                 int sockfd, const struct sockaddr* addr, socklen_t addrlen) {
+    // Make sure the socket is non-blocking
+    int flags = fcntl(sockfd, F_GETFL, 0);
+    fcntl(sockfd, F_SETFL, flags | O_NONBLOCK);
+    
     int ret = connect(sockfd, addr, addrlen);
     
     if (ret == 0) {
@@ -221,14 +227,12 @@ bool co_connect(CoroutineScheduler& scheduler, EpollScheduler& epoll_scheduler,
     epoll_scheduler.WaitForWrite(sockfd, current_coro, &scheduler);
     scheduler.Yield();
     
-    // Unregister when we wake up
-    epoll_scheduler.UnregisterEvent(sockfd);
-    
     // Check if connection was successful
     int error = 0;
     socklen_t len = sizeof(error);
     if (getsockopt(sockfd, SOL_SOCKET, SO_ERROR, &error, &len) < 0 || error) {
         // Connection failed
+        epoll_scheduler.UnregisterEvent(sockfd);
         return false;
     }
     

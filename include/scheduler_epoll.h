@@ -2,64 +2,59 @@
 // Linux and BSD-based systems only
 // Created on 2025-05-06 14:00:00
 
-// Tested on 2025-05-06 15:45:00
+// Tested on 2025-05-06 15:20:00
 // change: yield timing squence
 // event registration and unregistration
 // switched from system socket to coroutine socket
-#ifndef SCHEDULER_EPOLL_H
-#define SCHEDULER_EPOLL_H
+// scheduler_epoll.h - Improved version
 
-#include "./libco-lite.h"
-#include "./co_socket.h"
+// 2025-05-08 00:55:00 refactored the code to use a hash set to track existing IDs
+// Performance improvements and bug fixes. 
+// refactored, event-driven. 
+#pragma once
+
 #include <sys/epoll.h>
 #include <map>
-#include <vector>
-#include <utility>
+#include <stdint.h>
+#include <sys/socket.h>  // For socklen_t
+#include "../include/libco-lite.h"
 
 class EpollScheduler {
 public:
     EpollScheduler();
     ~EpollScheduler();
-
-    // Register a file descriptor with epoll and associate it with a coroutine
+    
     void RegisterEvent(int fd, uint32_t events, int coro_id, CoroutineScheduler* scheduler);
-
-    // Unregister a file descriptor
     void UnregisterEvent(int fd);
-
-    // Find and resume coroutine based on fd and event
     bool ResumeCoroutine(int fd, uint32_t events);
-
-    // Poll for events and resume coroutines
-    void Poll(int timeout_ms = -1);
-
-    // Helper functions for common operations
+    void Poll(int timeout_ms);
+    
     void WaitForRead(int fd, int coro_id, CoroutineScheduler* scheduler);
     void WaitForWrite(int fd, int coro_id, CoroutineScheduler* scheduler);
-
+    
 private:
-    int epoll_fd_;
-    std::map<int, std::vector<std::pair<uint32_t, std::pair<int, CoroutineScheduler*>>>> fd_to_coro_;
+    int epoll_fd_ = -1;
+    
+    // Simpler data structure to store event data
+    struct EventData {
+        int coro_id;
+        CoroutineScheduler* scheduler;
+        uint32_t events;
+    };
+    
+    std::map<int, EventData> fd_to_data_;
 };
 
 namespace co_socket_epoll {
-
-// Epoll-based socket accept - integrates with your existing co_socket
-int co_accept(CoroutineScheduler& scheduler, EpollScheduler& epoll_scheduler, 
-              int sockfd, struct sockaddr* addr, socklen_t* addrlen);
-
-// Epoll-based socket receive
-ssize_t co_recv(CoroutineScheduler& scheduler, EpollScheduler& epoll_scheduler,
-                int sockfd, void* buf, size_t len, int flags);
-
-// Epoll-based socket send
-ssize_t co_send(CoroutineScheduler& scheduler, EpollScheduler& epoll_scheduler,
-                int sockfd, const void* buf, size_t len, int flags);
-
-// Epoll-based socket connect
-bool co_connect(CoroutineScheduler& scheduler, EpollScheduler& epoll_scheduler,
-                int sockfd, const struct sockaddr* addr, socklen_t addrlen);
-
-} // namespace co_socket_epoll
-
-#endif // SCHEDULER_EPOLL_H
+    int co_accept(CoroutineScheduler& scheduler, EpollScheduler& epoll_scheduler, 
+                 int sockfd, struct sockaddr* addr, socklen_t* addrlen);
+    
+    ssize_t co_recv(CoroutineScheduler& scheduler, EpollScheduler& epoll_scheduler,
+                   int sockfd, void* buf, size_t len, int flags);
+    
+    ssize_t co_send(CoroutineScheduler& scheduler, EpollScheduler& epoll_scheduler,
+                   int sockfd, const void* buf, size_t len, int flags);
+    
+    bool co_connect(CoroutineScheduler& scheduler, EpollScheduler& epoll_scheduler,
+                   int sockfd, const struct sockaddr* addr, socklen_t addrlen);
+}
