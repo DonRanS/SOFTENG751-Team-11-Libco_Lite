@@ -1,8 +1,9 @@
 
 # Project Team 11 - Libco Lite Linux
-
+## Please use **libco-lite-libdll** branch!
 ## Overview
 This project is part of the **Libco Lite Linux** initiative, developed by **Team 11**. It aims to provide lightweight, efficient, and modular solutions for Linux-based systems.
+Following **libdll** (https://libdill.org/structured-concurrency.html) design philosophy and its API.  
 This project is totally irrelevant to THE **libco** library, much more primitive...
 
 ## Installation
@@ -17,7 +18,6 @@ This project is totally irrelevant to THE **libco** library, much more primitive
 3. ```bash
     xmake
     ```
-4. Yeah... just xmake.
 ## Contributing
 We welcome contributions! Please follow these steps:
 1. Fork the repository.
