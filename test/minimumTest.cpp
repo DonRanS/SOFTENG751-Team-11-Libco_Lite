@@ -261,6 +261,36 @@ int main() {
     hclose(c8);
     printf("Test 7 completed successfully\n\n");
 
+    // Test 10: Buffered Channel & Introspection
+    printf("--- Test 8: Buffered Channel & Introspection ---\n");
+    hndl_t chb[2];
+    assert(chmake(chb) == 0);
+    // 3 slots × 16 bytes
+    assert(chbuffer(chb[0], 3, 16) == 0);
+    assert(chcapacity(chb[0]) == 3);
+    assert(chsize(chb[0])     == 0);
+
+    // fill buffer
+    for(int i = 1; i <= 3; i++) {
+        char msg[16];
+        snprintf(msg, sizeof(msg), "msg%d", i);
+        assert(chsend(chb[0], msg, strlen(msg)+1, -1) == 0);
+        assert(chsize(chb[0]) == i);
+    }
+
+    // read back
+    char buf[16];
+    for(int i = 1; i <= 3; i++) {
+        assert(chrecv(chb[1], buf, sizeof(buf), -1) == 0);
+        printf("  got '%s'\n", buf);
+        assert(chsize(chb[0]) == 3 - i);
+    }
+
+    hclose(chb[0]);
+    hclose(chb[1]);
+    printf("Test 10 OK\n\n");
+
+
     printf("=== All tests completed successfully ===\n");
     return 0;
 }

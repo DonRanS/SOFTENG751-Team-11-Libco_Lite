@@ -1,10 +1,10 @@
 {
+    depfiles = "broadcastTest.o: test/broadcastTest.cpp test/../include/libco-lite.h\
+",
     depfiles_format = "gcc",
     files = {
         "test/broadcastTest.cpp"
     },
-    depfiles = "broadcastTest.o: test/broadcastTest.cpp test/../include/libco-lite.h\
-",
     values = {
         "/usr/bin/gcc",
         {

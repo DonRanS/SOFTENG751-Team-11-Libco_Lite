@@ -1,14 +1,5 @@
 {
     cmdlines = {
-        "xmake lua /home/bernardino/.local/share/xmake/modules/private/utils/statistics.lua",
-        "xmake run",
-        "xmake ",
-        "xmake run",
-        "xmake clean",
-        "xmake ",
-        "xmake run",
-        "xmake clean",
-        "xmake ",
         "xmake run",
         "xmake clean",
         "xmake ",
@@ -61,6 +52,18 @@
         "xmake run broadcastTest",
         "xmake clean",
         "xmake ",
-        "xmake run broadcastTest"
+        "xmake run broadcastTest",
+        "xmake ",
+        "xmake run",
+        "xmake clean",
+        "xmake ",
+        "xmake run",
+        "xmake ",
+        "xmake clean",
+        "xmake ",
+        "xmake run",
+        "xmake clean",
+        "xmake ",
+        "xmake run"
     }
 }

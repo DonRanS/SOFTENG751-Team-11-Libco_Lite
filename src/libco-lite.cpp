@@ -607,6 +607,37 @@ bool is_canceled() {
     return it->second->canceled;
 }
 
+// allocate a buffer of `slots` elements, each `itemsize` bytes
+int chbuffer(hndl_t ch, size_t slots, size_t itemsize) {
+    channel_s* c = (channel_s*)hquery(ch, chan_type);
+    if(!c) return -1;           // EBADF
+    if(c->buf) { errno=EALREADY; return -1; }
+    if(slots==0 || itemsize==0){ errno=EINVAL; return -1; }
+    c->buf = malloc(slots * itemsize);
+    if(!c->buf) { errno=ENOMEM; return -1; }
+    c->bufsize  = slots * itemsize;
+    c->itemsize = itemsize;
+    c->items    = 0;
+    c->first    = 0;
+    return 0;
+}
+
+// return number of slots, or –1 + errno
+int chcapacity(hndl_t ch) {
+    channel_s* c = (channel_s*)hquery(ch, chan_type);
+    if(!c) return -1;
+    if(!c->buf) { errno=ENOTSUP; return -1; }
+    return (int)(c->bufsize / c->itemsize);
+}
+
+// return current queue length, or –1 + errno
+int chsize(hndl_t ch) {
+    channel_s* c = (channel_s*)hquery(ch, chan_type);
+    if(!c) return -1;
+    if(!c->buf) { errno=ENOTSUP; return -1; }
+    return (int)c->items;
+}
+
 // channel creation
 int chmake(hndl_t chv[2]) {
     return chmake_mem(NULL, chv);
@@ -714,6 +745,19 @@ int chsend(hndl_t ch, const void *val, size_t len, int64_t deadline) {
         free(rx);
         return 0;
     }
+
+    // ** buffered‐path: kalau channel sudah di-buffer dan masih ada slot kosong **
+    if(c->buf) {
+        size_t cap = c->bufsize / c->itemsize;
+        if(c->items < cap) {
+            // hitung posisi tulis berikutnya
+            size_t pos = (c->first + c->items) % cap;
+            memcpy((char*)c->buf + pos * c->itemsize, val, len);
+            c->items++;
+            return 0;
+        }
+    }
+    
     
     // if buffer is used and not full, write to buffer
     if (c->buf && c->items < c->bufsize / c->itemsize) {
@@ -789,34 +833,48 @@ int chrecv(hndl_t ch, void *val, size_t len, int64_t deadline) {
     global_ctx &ctx = get_ctx();
     
     // check buf
-    if (c->items > 0) {
-        // RD buf
-        if (val) {
-            memcpy(val, (char*)c->buf + c->first * c->itemsize, 
-                  len < c->itemsize ? len : c->itemsize);
-        }
+//    if (c->items > 0) {
+//        // RD buf
+//        if (val) {
+//            memcpy(val, (char*)c->buf + c->first * c->itemsize, 
+//                  len < c->itemsize ? len : c->itemsize);
+//        }
         // up buf status
-        c->first = (c->first + 1) % (c->bufsize / c->itemsize);
-        c->items--; // Consume!!!!!! Devour!!!
+//        c->first = (c->first + 1) % (c->bufsize / c->itemsize);
+//        c->items--; // Consume!!!!!! Devour!!!
         
         // if there are waiting senders, notify them. process them
-        if (!c->senders.empty()) {
-            waiting_clause *tx = c->senders.front();
-            c->senders.erase(c->senders.begin());
+//        if (!c->senders.empty()) {
+//            waiting_clause *tx = c->senders.front();
+//            c->senders.erase(c->senders.begin());
             
             // sav data to buffer
-            if (tx->val) {
-                size_t pos = (c->first + c->items) % (c->bufsize / c->itemsize);
-                memcpy((char*)c->buf + pos * c->itemsize, tx->val, tx->len);
-            }
+//            if (tx->val) {
+//                size_t pos = (c->first + c->items) % (c->bufsize / c->itemsize);
+//                memcpy((char*)c->buf + pos * c->itemsize, tx->val, tx->len);
+//            }
             
-            c->items++;
+//            c->items++;
             
             // all done. resume the sender coroutine
-            resume(tx->coro, tx->id);
-            free(tx);
-        }
+//            resume(tx->coro, tx->id);
+//            free(tx);
+//        }
         
+//        return 0;
+//    }
+
+// FAST-PATH: kalau channel ini di‐buffer dan ada data
+    if (c->buf && c->items > 0) {
+        size_t cap = c->bufsize / c->itemsize;
+        // hitung berapa byte yang hendak dicopy
+        size_t to_read = (len < c->itemsize ? len : c->itemsize);
+        memcpy(val,
+               (char*)c->buf + c->first * c->itemsize,
+                to_read);
+        // geser head index & decrement count
+        c->first = (c->first + 1) % cap;
+        c->items--;
         return 0;
     }
     

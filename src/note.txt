@@ -1,4 +1,4 @@
-Use this command to run broadcastTest.cpp (xmake bugging, take unreasonable trash):
+Use this command to run broadcastTest.cpp and bufferedChannelTest.cpp (xmake bugging, take unreasonable trash):
 
 g++ -std=c++17 -pthread \
   -I. \
@@ -6,3 +6,11 @@ g++ -std=c++17 -pthread \
   -o broadcastTest
 
 ./broadcastTest
+
+g++ -std=c++17 -pthread \
+    -Iinclude \
+    libco-lite.cpp bufferedChannelTest.cpp \
+    -o bufferedTest
+
+./bufferedTest
+

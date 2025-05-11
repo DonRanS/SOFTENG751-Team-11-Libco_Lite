@@ -1,10 +1,10 @@
 {
+    depfiles = "minimumTest.o: test/minimumTest.cpp test/../include/libco-lite.h\
+",
     depfiles_format = "gcc",
     files = {
         "test/minimumTest.cpp"
     },
-    depfiles = "minimumTest.o: test/minimumTest.cpp test/../include/libco-lite.h\
-",
     values = {
         "/usr/bin/gcc",
         {

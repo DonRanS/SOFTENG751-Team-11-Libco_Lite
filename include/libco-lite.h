@@ -68,6 +68,9 @@ int chmake_mem(void *mem, hndl_t chv[2]);
 int chsend(hndl_t ch, const void *val, size_t len, int64_t deadline);
 int chrecv(hndl_t ch, void *val, size_t len, int64_t deadline);
 int chdone(hndl_t ch);
+int chbuffer(hndl_t ch, size_t slots, size_t itemsize);
+int chcapacity(hndl_t ch);
+int chsize(hndl_t ch);     
 
 // Cancel a coroutine (cooperative): any blocking call in that coro will fail with ECANCELED
 int cancel(hndl_t h);
