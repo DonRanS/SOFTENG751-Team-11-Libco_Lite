@@ -49,6 +49,13 @@ void nested_coroutine(void* arg) {
     printf("Nested coroutine finished\n");
 }
 
+void sleeper(void* arg) {
+    int timeout = *(int*)arg;
+    printf(">>> coroutine will sleep for %d ms...\n", timeout);
+    sleep_for(timeout);
+    printf(">>> coroutine is waking up!\n");
+}
+
 void channel_test(void* arg) {
     printf("Channel test started\n");
     
@@ -133,21 +140,87 @@ int main() {
     printf("Test 2 completed successfully\n\n");
     
    printf("--- Test 3: Channel Communication ---\n");
-hndl_t channel_h = go(channel_test, NULL);
-assert(channel_h >= 0);
-printf("Channel test coroutine created with handle: %d\n", channel_h);
+    hndl_t channel_h = go(channel_test, NULL);
+    assert(channel_h >= 0);
+    printf("Channel test coroutine created with handle: %d\n", channel_h);
 
-// Loop to resume coroutine until complete
-while (is_coroutine_alive(channel_h)) {
-    printf("Resuming channel test coroutine\n");
-    resume(channel_h, 0);
-    printf("Channel test coroutine resumed\n");
-}
+    // Loop to resume coroutine until complete
+    while (is_coroutine_alive(channel_h)) {
+        printf("Resuming channel test coroutine\n");
+        resume(channel_h, 0);
+        printf("Channel test coroutine resumed\n");
+    }
 
-// Close coroutine handle
-printf("Closing channel test coroutine handle\n");
-hclose(channel_h);
-printf("Test 3 completed successfully\n\n");
+    // Close coroutine handle
+    printf("Closing channel test coroutine handle\n");
+    hclose(channel_h);
+    printf("Test 3 completed successfully\n\n");
+
+    printf("--- Test 4: sleep_for(3000 ms) ---\n");
+    int timeout = 3000;
+    hndl_t sleep_h = go(sleeper, &timeout);
+    assert(sleep_h >= 0);
+    while (is_coroutine_alive(sleep_h)) {
+        resume(sleep_h, 0);
+    }
+    hclose(sleep_h);
+    printf("Test 4 completed successfully\n\n");
+
+    printf("--- Test 5: Non-blocking Channel ---\n");
+    hndl_t chv5[2];
+    assert(chmake(chv5) == 0);
+
+    const char* nbmsg = "NB test";
+    errno = 0;
+    int rc = chsend_nb(chv5[0], nbmsg, strlen(nbmsg)+1);
+    if (rc < 0 && errno == EAGAIN) {
+        printf("  non-blocking send correctly returned EAGAIN\n");
+    } else {
+        printf("  non-blocking send unexpected rc=%d errno=%d\n", rc, errno);
+    }
+
+    char nbbuf[32] = {0};
+    rc = chrecv_nb(chv5[1], nbbuf, sizeof(nbbuf));
+    if (rc < 0 && errno == EAGAIN) {
+        printf("  non-blocking recv correctly returned EAGAIN\n");
+    } else {
+        printf("  non-blocking recv unexpected rc=%d errno=%d\n", rc, errno);
+    }
+
+    // cleanup
+    hclose(chv5[0]);
+    hclose(chv5[1]);
+    printf("Test 5 completed successfully\n\n");
+
+    printf("--- Test 6: Channel Duplication ---\n");
+    hndl_t chv6[2];
+    assert(chmake(chv6) == 0);
+    // duplikasi handle send & recv
+    hndl_t dup_s = chdup(chv6[0]);
+    hndl_t dup_r = chdup(chv6[1]);
+    assert(dup_s > 0 && dup_r > 0);
+    
+    // pastikan kedua handle merujuk ke channel yang sama
+    assert(channel_equal(chv6[0], dup_s));
+    assert(channel_equal(chv6[1], dup_r));
+    printf("  channel_equal(chv6[0], dup_s) == true\n");
+    printf("  channel_equal(chv6[1], dup_r) == true\n");
+    
+    // kirim via handle asli, terima via duplikat
+    const char* dup_msg = "duplication!";
+    assert(chsend(chv6[0], dup_msg, strlen(dup_msg)+1, -1) == 0);
+    char dup_buf[64] = {0};
+    assert(chrecv(dup_r, dup_buf, sizeof(dup_buf), -1) == 0);
+    assert(strcmp(dup_buf, dup_msg) == 0);
+    printf("  duplication test passed\n");
+
+    // cleanup: tutup semua handle
+    hclose(dup_s);
+    hclose(dup_r);
+    hclose(chv6[0]);
+    hclose(chv6[1]);
+    printf("Test 6 completed successfully\n\n");
+
     printf("=== All tests completed successfully ===\n");
     return 0;
 }

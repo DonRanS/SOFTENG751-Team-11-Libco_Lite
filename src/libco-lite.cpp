@@ -14,6 +14,7 @@
 #include <iostream>
 #include <mutex>
 #include <memory>
+#include <errno.h>
 
 // unique identifier，like libdill---dill_unique_id marco
 static const int cr_type_placeholder = 0;
@@ -563,6 +564,11 @@ int msleep(int64_t deadline) {
     return 0;
 }
 
+int sleep_for(int64_t timeout_ms) {
+    int64_t deadline = now() + timeout_ms;
+    return msleep(deadline);
+}
+
 // channel creation
 int chmake(hndl_t chv[2]) {
     return chmake_mem(NULL, chv);
@@ -839,6 +845,46 @@ int chrecv(hndl_t ch, void *val, size_t len, int64_t deadline) {
     }*/
     errno = ETIMEDOUT;
     return -1;
+}
+
+int chsend_nb(hndl_t ch, const void *val, size_t len) {
+    int rc = chsend(ch, val, len, 0);
+    if (rc < 0 && (errno == ETIMEDOUT || errno == EBADF)) {
+        errno = EAGAIN;
+    }
+    return rc;
+}
+
+// libco-lite.cpp
+
+int chrecv_nb(hndl_t ch, void *val, size_t len) {
+    int rc = chrecv(ch, val, len, 0);
+    // if we got timeout *or* bad-handle, turn it into EAGAIN
+    if (rc < 0 && (errno == ETIMEDOUT || errno == EBADF)) {
+        errno = EAGAIN;
+    }
+    return rc;
+}
+
+hndl_t chdup(hndl_t ch) {
+    // query untuk memastikan ch valid
+    channel_s *c = (channel_s*)hquery(ch, chan_type);
+    if (!c) {
+        // errno sudah di-set oleh hquery menjadi EBADF
+        return -1;
+    }
+    // buat handle baru yang menunjuk ke hvfs yang sama
+    return hmake(&c->hvfs);
+}
+
+int channel_equal(hndl_t a, hndl_t b) {
+    void *pa = hquery(a, chan_type);
+    void *pb = hquery(b, chan_type);
+    if (!pa || !pb) {
+        errno = EBADF;
+        return 0;
+    }
+    return pa == pb;
 }
 
 // channel done

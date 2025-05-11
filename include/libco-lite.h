@@ -59,6 +59,7 @@ hndl_t hown(hndl_t h);
 // Basic synchronization primitives
 int msleep(int64_t deadline);
 int64_t now();
+int sleep_for(int64_t timeout_ms);
 
 // Channel operations
 int chmake(hndl_t chv[2]);
@@ -66,6 +67,17 @@ int chmake_mem(void *mem, hndl_t chv[2]);
 int chsend(hndl_t ch, const void *val, size_t len, int64_t deadline);
 int chrecv(hndl_t ch, void *val, size_t len, int64_t deadline);
 int chdone(hndl_t ch);
+
+// return 1 if two channel handles refer to the same channel object
+int channel_equal(hndl_t a, hndl_t b);
+
+// Duplicate a channel handle (multi-producer/multi-consumer)
+hndl_t chdup(hndl_t ch);
+
+// Non-blocking channel operations (deadline = 0)
+int chsend_nb(hndl_t ch, const void *val, size_t len);
+int chrecv_nb(hndl_t ch, void *val, size_t len);
+
 
 // Choose operation
 struct chclause {

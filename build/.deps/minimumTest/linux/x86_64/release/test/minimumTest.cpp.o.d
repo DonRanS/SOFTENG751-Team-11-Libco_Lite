@@ -1,8 +1,5 @@
 {
     depfiles_format = "gcc",
-    files = {
-        "test/minimumTest.cpp"
-    },
     depfiles = "minimumTest.o: test/minimumTest.cpp test/../include/libco-lite.h\
 ",
     values = {
@@ -12,10 +9,13 @@
             "-fvisibility=hidden",
             "-fvisibility-inlines-hidden",
             "-O3",
-            "-std=c++20",
+            "-std=c++2a",
             "-I.",
             "-Ibuild/.gens/minimumTest/linux/x86_64/release/platform/windows/idl",
             "-DNDEBUG"
         }
+    },
+    files = {
+        "test/minimumTest.cpp"
     }
 }
