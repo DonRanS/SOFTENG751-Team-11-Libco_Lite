@@ -14,6 +14,7 @@
 #include <iostream>
 #include <mutex>
 #include <memory>
+#include <sys/types.h>
 #include <errno.h>
 
 // unique identifier，like libdill---dill_unique_id marco
@@ -43,6 +44,7 @@ struct coroutine_s {
     int id;                 // coro id (handle)
     uintptr_t yield_val;    // coro-yield value
     void (*fn)(void*);      // coro function
+    bool canceled;          // canceled
     bool has_own_stack;     // coro stackful or stackless
     size_t stack_size;      // stack size
     char *stack;            // stack pointer
@@ -286,6 +288,7 @@ hndl_t go_mem(void (*fn)(void*), void *arg, void *stack, size_t stack_size) {
     cr->arg = arg;
     cr->status = CORO_READY;
     cr->yield_val = 0;
+    cr->canceled  = false;
     
     // stack allocation and initialization and set and options and...
     // if stack is provided, use it. bunch of stack definitions and ops
@@ -556,6 +559,13 @@ int msleep(int64_t deadline) {
         while (now() < deadline) {
             yield();
         }
+        while (now() < deadline) {
+            if (is_canceled()) {
+                errno = ECANCELED;
+                    return -1;
+                    }
+                yield();
+            }
         return 0;
     }
     
@@ -567,6 +577,29 @@ int msleep(int64_t deadline) {
 int sleep_for(int64_t timeout_ms) {
     int64_t deadline = now() + timeout_ms;
     return msleep(deadline);
+}
+
+int cancel(hndl_t h) {
+    global_ctx &ctx = get_ctx();
+    std::lock_guard<std::mutex> lock(ctx.mutex);
+    auto it = ctx.coroutines.find(h);
+    if (it == ctx.coroutines.end()) {
+        errno = EBADF;
+        return -1;
+    }
+    it->second->canceled = true;
+    // jika koronya sedang blocked, wake-up via resume()
+    resume(h, (uintptr_t)-1);
+    return 0;
+}
+
+bool is_canceled() {
+    global_ctx &ctx = get_ctx();
+    hndl_t h = ctx.running_coro;
+    if (h < 0) return false;
+    auto it = ctx.coroutines.find(h);
+    if (it == ctx.coroutines.end()) return false;
+    return it->second->canceled;
 }
 
 // channel creation
@@ -636,7 +669,7 @@ int chsend(hndl_t ch, const void *val, size_t len, int64_t deadline) {
     // get channel
     channel_s *c = (channel_s*)hquery(ch, chan_type);
     if (!c) {
-        return -1;  // errno已由hquery设置
+        return -1; 
     }    
     // check channel status. closed or not
     if (c->done) {
@@ -694,6 +727,10 @@ int chsend(hndl_t ch, const void *val, size_t len, int64_t deadline) {
     
     // if blckable and in coroutine
     if (deadline != 0 && ctx.running_coro >= 0) {
+        if (is_canceled()) {
+            errno = ECANCELED;
+            return -1;
+        }
         // create waiting clause
         waiting_clause *tx = (waiting_clause*)malloc(sizeof(waiting_clause));
         if (!tx) {
@@ -807,6 +844,10 @@ int chrecv(hndl_t ch, void *val, size_t len, int64_t deadline) {
     
     // if blockable and in coroutine
     if (deadline != 0 && ctx.running_coro >= 0) {
+        if (is_canceled()) {
+            errno = ECANCELED;
+            return -1;
+        }
         // waiting clause created!
         waiting_clause *rx = (waiting_clause*)malloc(sizeof(waiting_clause));
         if (!rx) {
@@ -876,6 +917,7 @@ hndl_t chdup(hndl_t ch) {
     // buat handle baru yang menunjuk ke hvfs yang sama
     return hmake(&c->hvfs);
 }
+
 
 int channel_equal(hndl_t a, hndl_t b) {
     void *pa = hquery(a, chan_type);

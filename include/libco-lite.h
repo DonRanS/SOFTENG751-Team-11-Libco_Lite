@@ -2,6 +2,7 @@
 #define H_COROUTINE_H_
 
 #include <stdint.h>
+#include <sys/types.h>    
 #include <map>
 #include <cstddef>
 #include <cstdlib>
@@ -67,6 +68,11 @@ int chmake_mem(void *mem, hndl_t chv[2]);
 int chsend(hndl_t ch, const void *val, size_t len, int64_t deadline);
 int chrecv(hndl_t ch, void *val, size_t len, int64_t deadline);
 int chdone(hndl_t ch);
+
+// Cancel a coroutine (cooperative): any blocking call in that coro will fail with ECANCELED
+int cancel(hndl_t h);
+// Query inside a coroutine whether it has been canceled
+bool is_canceled();
 
 // return 1 if two channel handles refer to the same channel object
 int channel_equal(hndl_t a, hndl_t b);

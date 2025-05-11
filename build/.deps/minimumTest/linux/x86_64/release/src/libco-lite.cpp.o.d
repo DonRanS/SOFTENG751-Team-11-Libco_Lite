@@ -1,7 +1,7 @@
 {
-    depfiles_format = "gcc",
-    depfiles = "libco-lite.o: src/libco-lite.cpp src/../include/libco-lite.h\
-",
+    files = {
+        "src/libco-lite.cpp"
+    },
     values = {
         "/usr/bin/gcc",
         {
@@ -15,7 +15,7 @@
             "-DNDEBUG"
         }
     },
-    files = {
-        "src/libco-lite.cpp"
-    }
+    depfiles = "libco-lite.o: src/libco-lite.cpp src/../include/libco-lite.h\
+",
+    depfiles_format = "gcc"
 }

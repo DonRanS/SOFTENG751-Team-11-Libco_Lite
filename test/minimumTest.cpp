@@ -56,6 +56,16 @@ void sleeper(void* arg) {
     printf(">>> coroutine is waking up!\n");
 }
 
+void cancel_coroutine(void* arg) {
+    printf("Cancel coroutine: about to yield\n");
+    uintptr_t r = yield();
+    if (r == (uintptr_t)-1 && is_canceled()) {
+        printf("Cancel coroutine: detected cancellation (r=%ld)\n", (long)r);
+    } else {
+        printf("Cancel coroutine: woke up normally (r=%ld)\n", (long)r);
+    }
+}
+
 void channel_test(void* arg) {
     printf("Channel test started\n");
     
@@ -220,6 +230,21 @@ int main() {
     hclose(chv6[0]);
     hclose(chv6[1]);
     printf("Test 6 completed successfully\n\n");
+
+    printf("--- Test 7: Cancellation ---\n");
+    hndl_t c8 = go(cancel_coroutine, NULL);
+    assert(c8 >= 0);
+
+    // 1) Start it so that it reaches yield()
+    resume(c8, 0);
+
+    // 2) Cancel 
+    printf("Main: canceling coroutine\n");
+    cancel(c8);
+
+    // Cleanup
+    hclose(c8);
+    printf("Test 7 completed successfully\n\n");
 
     printf("=== All tests completed successfully ===\n");
     return 0;

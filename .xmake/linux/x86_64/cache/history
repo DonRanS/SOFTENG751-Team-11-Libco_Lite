@@ -1,0 +1,26 @@
+{
+    cmdlines = {
+        "xmake lua /home/bernardino/.local/share/xmake/modules/private/utils/statistics.lua",
+        "xmake run",
+        "xmake ",
+        "xmake run",
+        "xmake clean",
+        "xmake ",
+        "xmake run",
+        "xmake clean",
+        "xmake ",
+        "xmake run",
+        "xmake clean",
+        "xmake ",
+        "xmake run minimumTest",
+        "xmake ",
+        "xmake lua /home/bernardino/.local/share/xmake/modules/private/utils/statistics.lua",
+        "xmake lua /home/bernardino/.local/share/xmake/actions/build/cleaner.lua",
+        "xmake run",
+        "xmake clean",
+        "xmake ",
+        "xmake run",
+        "xmake ",
+        "xmake run"
+    }
+}
