@@ -580,18 +580,23 @@ int sleep_for(int64_t timeout_ms) {
 }
 
 int cancel(hndl_t h) {
-    global_ctx &ctx = get_ctx();
-    std::lock_guard<std::mutex> lock(ctx.mutex);
-    auto it = ctx.coroutines.find(h);
-    if (it == ctx.coroutines.end()) {
-        errno = EBADF;
-        return -1;
-    }
-    it->second->canceled = true;
-    // jika koronya sedang blocked, wake-up via resume()
-    resume(h, (uintptr_t)-1);
-    return 0;
-}
+     // First, mark it canceled under lock, but don't resume yet
+     coroutine_s *cr = nullptr;
+     {
+         global_ctx &ctx = get_ctx();
+         std::lock_guard<std::mutex> lock(ctx.mutex);
+         auto it = ctx.coroutines.find(h);
+         if (it == ctx.coroutines.end()) {
+             errno = EBADF;
+             return -1;
+         }
+         cr = it->second;
+         cr->canceled = true;
+     }
+     // Now that the cancel‐flag is set, wake it up OUTSIDE the mutex
+     resume(h, (uintptr_t)-1);
+     return 0;
+ }
 
 bool is_canceled() {
     global_ctx &ctx = get_ctx();
@@ -946,14 +951,27 @@ int chdone(hndl_t ch) {
     c->done = true;
     
     // notify all senders and receivers
-    for (auto tx : c->senders) {
-        resume(tx->coro, (uintptr_t)-1);  // err mark--tx
+//    for (auto tx : c->senders) {
+//        resume(tx->coro, (uintptr_t)-1);  // err mark--tx
+//        free(tx);
+//    }
+//    c->senders.clear();
+    
+//    for (auto rx : c->receivers) {
+//        resume(rx->coro, (uintptr_t)-1);  // err mark--rx
+//       free(rx);
+//    }
+//    c->receivers.clear();
+
+    // broadcast shutdown: cancel setiap coroutine yang menunggu
+   for (auto tx : c->senders) {
+        cancel(tx->coro);
         free(tx);
     }
     c->senders.clear();
-    
+
     for (auto rx : c->receivers) {
-        resume(rx->coro, (uintptr_t)-1);  // err mark--rx
+       cancel(rx->coro);
         free(rx);
     }
     c->receivers.clear();

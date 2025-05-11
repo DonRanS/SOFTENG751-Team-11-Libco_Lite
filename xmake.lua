@@ -17,7 +17,7 @@ add_rules("mode.debug", "mode.release")
 -- target: libco-lite
 target("minimumTest")
     set_kind("binary")                        
-    add_includedirs(".")                       
+    add_includedirs("include")                       
     add_files("./test/minimumTest.cpp")             
     add_files("./src/libco-lite.cpp")    
 
@@ -29,3 +29,8 @@ target("minimumTest")
         set_optimize("fastest")
         set_strip("all")
     end
+
+target("broadcastTest")
+    set_kind("binary")
+    add_includedirs("include")
+    add_files("src/libco-lite.cpp", "test/broadcastTest.cpp")

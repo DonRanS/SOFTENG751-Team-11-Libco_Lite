@@ -1,0 +1,8 @@
+Use this command to run broadcastTest.cpp (xmake bugging, take unreasonable trash):
+
+g++ -std=c++17 -pthread \
+  -I. \
+  libco-lite.cpp broadcastTest.cpp \
+  -o broadcastTest
+
+./broadcastTest

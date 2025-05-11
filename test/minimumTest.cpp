@@ -66,6 +66,21 @@ void cancel_coroutine(void* arg) {
     }
 }
 
+void broadcast_coroutine(void* arg) {
+    hndl_t* ch = (hndl_t*)arg;
+    char buf[16];
+    printf("Broadcast coro: menunggu chrecv()...\n");
+    int rc = chrecv(ch[1], buf, sizeof(buf), -1);
+    if (rc < 0 && is_canceled()) {
+        printf("Broadcast coro: dibatalkan oleh chdone()\n");
+    } else if (rc < 0) {
+        printf("Broadcast coro: chrecv error %d\n", errno);
+    } else {
+        printf("Broadcast coro: unexpected recv '%s'\n", buf);
+    }
+}
+
+
 void channel_test(void* arg) {
     printf("Channel test started\n");
     
