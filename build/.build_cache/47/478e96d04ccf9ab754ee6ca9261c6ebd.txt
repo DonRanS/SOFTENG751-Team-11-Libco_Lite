@@ -1,0 +1,10 @@
+{
+    errdata = "\27[1mtest/benchmark.cpp:77:20: \27[0m\27[0;1;35mwarning: \27[0m\27[1mformat specifies type 'unsigned long' but the argument has type 'uint64_t' (aka 'unsigned long long') [-Wformat]\27[0m\
+   76 |             printf(\27[0;32m\"[%lu ms] Iteration %d: Total counts: %d\\n\"\27[0m,\27[0m\
+      | \27[0;1;32m                     ~~~\
+\27[0m      | \27[0;32m                     %llu\
+\27[0m   77 |                    elapsed, iterations, g_total_counts.load());\27[0m\
+      | \27[0;1;32m                   ^~~~~~~\
+\27[0m1 warning generated.\
+"
+}

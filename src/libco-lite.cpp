@@ -1396,5 +1396,19 @@ bool is_coroutine_alive(hndl_t h) {
 }
 
 hndl_t get_running_coroutine() {
-   return get_ctx().running_coro;
+    global_ctx &ctx = get_ctx();
+    // 增加验证，确保返回有效的协程ID
+    hndl_t current = ctx.running_coro;
+    
+    if (current >= 0) {
+        std::lock_guard<std::mutex> lock(ctx.mutex);
+        auto it = ctx.coroutines.find(current);
+        if (it == ctx.coroutines.end()) {
+            // 无效协程ID，更新全局状态
+            ctx.running_coro = -1;
+            return -1;
+        }
+    }
+    
+    return current;
 }

@@ -1,10 +1,4 @@
 {
-    depfiles_format = "gcc",
-    depfiles = "build/.objs/minimumTest/macosx/arm64/release/src/libco-lite.cpp.o:   src/libco-lite.cpp src/../include/libco-lite.h\
-",
-    files = {
-        "src/libco-lite.cpp"
-    },
     values = {
         "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang",
         {
@@ -23,5 +17,11 @@
             "-Wno-deprecated-declarations",
             "-DNDEBUG"
         }
-    }
+    },
+    files = {
+        "src/libco-lite.cpp"
+    },
+    depfiles_format = "gcc",
+    depfiles = "build/.objs/minimumTest/macosx/arm64/release/src/__cpp_libco-lite.cpp.cpp:   src/libco-lite.cpp src/../include/libco-lite.h\
+"
 }

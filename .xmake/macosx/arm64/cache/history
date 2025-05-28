@@ -12,6 +12,15 @@
         "xmake run -d",
         "xmake ",
         "xmake ",
+        "xmake ",
+        "xmake ",
+        "xmake lua /opt/homebrew/Cellar/xmake/2.9.9/share/xmake/modules/private/utils/statistics.lua",
+        "xmake lua /opt/homebrew/Cellar/xmake/2.9.9/share/xmake/actions/build/cleaner.lua",
+        "xmake ",
+        "xmake ",
+        "xmake ",
+        "xmake ",
+        "xmake ",
         "xmake "
     }
 }

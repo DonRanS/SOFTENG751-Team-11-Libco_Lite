@@ -1,0 +1,27 @@
+{
+    files = {
+        "test/benchmark.cpp"
+    },
+    depfiles_format = "gcc",
+    depfiles = "build/.objs/benchmark/macosx/arm64/release/test/__cpp_benchmark.cpp.cpp:   test/benchmark.cpp test/../include/libco-lite.h\
+",
+    values = {
+        "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang",
+        {
+            "-Qunused-arguments",
+            "-target",
+            "arm64-apple-macos15.4",
+            "-isysroot",
+            "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.4.sdk",
+            "-fvisibility=hidden",
+            "-fvisibility-inlines-hidden",
+            "-O3",
+            "-std=c++20",
+            "-I.",
+            "-Ibuild/.gens/benchmark/macosx/arm64/release/platform/windows/idl",
+            "-D_XOPEN_SOURCE",
+            "-Wno-deprecated-declarations",
+            "-DNDEBUG"
+        }
+    }
+}
