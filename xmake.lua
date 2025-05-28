@@ -14,6 +14,14 @@ set_languages("c++20")
 -- options
 add_rules("mode.debug", "mode.release")
 
+if is_plat("linux") then
+    add_defines("__linux__")
+elseif is_plat("macosx") then
+    add_defines("_XOPEN_SOURCE")
+    add_cxflags("-Wno-deprecated-declarations")
+end
+
+
 -- target: libco-lite
 target("minimumTest")
     set_kind("binary")                        
@@ -30,13 +38,13 @@ target("minimumTest")
         set_strip("all")
     end
 
-target("broadcastTest")
-    set_kind("binary")
-    add_includedirs("include")
-    add_files("src/libco-lite.cpp", "test/broadcastTest.cpp")
+-- target("broadcastTest")
+--     set_kind("binary")
+--     add_includedirs("include")
+--     add_files("src/libco-lite.cpp", "test/broadcastTest.cpp")
 
-target("bufferedChannelTest")
-    set_kind("binary")
-    add_files("libco-lite.cpp", "bufferedChannelTest.cpp")
-    add_includedirs("include")
-    add_links("pthread")
+-- target("bufferedChannelTest")
+--     set_kind("binary")
+--     add_files("libco-lite.cpp", "bufferedChannelTest.cpp")
+--     add_includedirs("include")
+--     add_links("pthread")

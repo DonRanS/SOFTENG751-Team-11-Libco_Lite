@@ -1,0 +1,17 @@
+{
+    cmdlines = {
+        "xmake ",
+        "xmake ",
+        "xmake ",
+        "xmake ",
+        "xmake clean",
+        "xmake ",
+        "xmake clean",
+        "xmake ",
+        "xmake run -d console",
+        "xmake run -d",
+        "xmake ",
+        "xmake ",
+        "xmake "
+    }
+}
