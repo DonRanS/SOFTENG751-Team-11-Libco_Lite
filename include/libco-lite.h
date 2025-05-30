@@ -107,4 +107,17 @@ int fdin(int fd, int64_t deadline);
 int fdout(int fd, int64_t deadline);
 int fdclean(int fd);
 
+
+uintptr_t resume_direct(hndl_t from_coro, hndl_t to_coro, uintptr_t val = 0);
+uintptr_t yield_to(hndl_t target_coro, uintptr_t val = 0);
+
+struct perf_stats {
+    uint64_t total_context_switches;
+    uint64_t direct_switches;
+    uint64_t main_switches;
+    double direct_switch_ratio;
+};
+
+//perf_stats get_perf_stats();
+void reset_perf_stats();
 #endif

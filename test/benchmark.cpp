@@ -1,5 +1,7 @@
-// minimum_benchmark.cpp - 最小化协程性能测试
+// deprecated: This file is deprecated and will be removed in future versions.
+// incompatible: This file is incompatible with the current version of libco-lite.(API changes)
 
+// please use simpleBench.cpp instead.
 #include "../include/libco-lite.h"
 #include <stdio.h>
 #include <stdlib.h>
