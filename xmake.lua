@@ -82,3 +82,17 @@ target("simpleBench")
         set_strip("all")
     end
 
+
+target("threadedServer")
+    set_kind("binary")
+    add_files("./test/threadedServer.cpp")
+    add_syslinks("pthread")
+    
+    if is_mode("debug") then
+        add_defines("DEBUG")
+        set_symbols("debug")
+    else
+        set_optimize("fastest")
+        set_strip("all")
+    end
+
