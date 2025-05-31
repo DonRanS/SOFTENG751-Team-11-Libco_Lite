@@ -49,13 +49,13 @@ target("minimumTest")
 --     add_includedirs("include")
 --     add_links("pthread")
 
-   target("benchmark")
-    set_kind("binary")                        
-    add_includedirs(".")                       
-    add_files("./test/benchmark.cpp")             
-    add_files("./src/libco-lite.cpp")  
-    --add_files("./src/poll_manager.cpp")  
-  --  add_files("./src/socket_ops.cpp") 
+--    target("benchmark")
+--     set_kind("binary")                        
+--     add_includedirs(".")                       
+--     add_files("./test/benchmark.cpp")             
+--     add_files("./src/libco-lite.cpp")  
+--     --add_files("./src/poll_manager.cpp")  
+--   --  add_files("./src/socket_ops.cpp") 
    target("ctxbenchmark")
     set_kind("binary")                        
     add_includedirs(".")                       
@@ -68,3 +68,17 @@ target("minimumTest")
         set_optimize("fastest")
         set_strip("all")
     end
+
+target("simpleBench")
+    set_kind("binary")
+    add_files("test/simpleBench.cpp")
+    add_syslinks("pthread")
+    
+    if is_mode("debug") then
+        add_defines("DEBUG")
+        set_symbols("debug")
+    else
+        set_optimize("fastest")
+        set_strip("all")
+    end
+
