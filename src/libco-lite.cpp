@@ -221,11 +221,32 @@ static void *bundle_query(struct hvfs *vfs, const void *type) {
     return NULL;
 }
 
+// Internal close that doesn't acquire locks
+static int hclose_internal(hndl_t h, global_ctx &ctx) {
+    auto it = ctx.handles.find(h);
+    if (it == ctx.handles.end()) {
+        errno = EBADF;
+        return -1;
+    }
+    
+    it->second->close(it->second);
+    ctx.handles.erase(it);
+    ctx.coroutines.erase(h);
+    
+    if (ctx.cached_current_handle == h) {
+        ctx.cached_current_handle = -1;
+        ctx.cached_current_coro = nullptr;
+    }
+    return 0;
+}
+
 static void bundle_close(struct hvfs *vfs) {
     bundle_s *b = (bundle_s*)vfs;
-    // close all sub-coroutines
+    global_ctx &ctx = get_ctx();
+    
+    // Close coroutines without re-acquiring lock
     for (hndl_t h : b->coroutines) {
-        hclose(h);
+        hclose_internal(h, ctx);
     }
     free(b);
 }
@@ -704,8 +725,9 @@ int bundle_wait(hndl_t bundle_h, int64_t deadline) {
     
     while (true) {
         bool all_done = true;
+        std::vector<hndl_t> ready_coros;
         
-        // check if all coroutines are done
+        // Check status and collect ready coroutines
         {
             std::lock_guard<std::mutex> lock(ctx.read_mutex);
             for (auto it = b->coroutines.begin(); it != b->coroutines.end();) {
@@ -716,7 +738,11 @@ int bundle_wait(hndl_t bundle_h, int64_t deadline) {
                     it = b->coroutines.erase(it);
                 } else {
                     coroutine_s *cr = coro_it->second;
-                    if (cr->status.load() != CORO_EXITED) {
+                    int status = cr->status.load();
+                    if (status == CORO_READY || status == CORO_SUSPENDED) {
+                        ready_coros.push_back(coro_h);
+                        all_done = false;
+                    } else if (status != CORO_EXITED) {
                         all_done = false;
                     }
                     ++it;
@@ -724,18 +750,24 @@ int bundle_wait(hndl_t bundle_h, int64_t deadline) {
             }
         }
         
+        // ACTUALLY RUN THE READY COROUTINES
+        for (hndl_t coro_h : ready_coros) {
+            resume(coro_h, 0);
+        }
+        
+        // Check if all done
         if (all_done) {
             b->done.store(true);
             return 0;
         }
         
-        // expire time check
+        // Check timeout
         if (deadline >= 0 && now() >= deadline) {
             errno = ETIMEDOUT;
             return -1;
         }
         
-        // yield if in coroutine
+        // Yield if in coroutine, otherwise brief sleep
         if (ctx.running_coro.load() >= 0) {
             yield();
         } else {
@@ -925,29 +957,245 @@ int chmake_mem(void *mem, hndl_t chv[2]) {
 // [Include all remaining channel functions: chsend, chrecv, etc.]
 // [Include all remaining file descriptor functions: fdin, fdout, etc.]
 // [For brevity, I'm not repeating them all here, but they would use the same optimizations]
-
-// Simplified versions of key channel functions:
+// [Fix: Wrong EAGAIN usage]
+// ============================================================================
 int chsend(hndl_t ch, const void *val, size_t len, int64_t deadline) {
-    // Implementation identical to original but benefits from optimized base functions
+       // printf("DEBUG: chsend called with ch=%d, deadline=%ld\n", ch, deadline);
+
     channel_s *c = (channel_s*)hquery(ch, chan_type);
-    if (!c) return -1;
+    if (!c) {
+//                printf("DEBUG: hquery FAILED in chsend, errno=%d\n", errno);
+
+        return -1; 
+    }    
     
+    // check channel status. closed or not (FIX: use .load())
     if (c->done.load()) {
         errno = EPIPE;
         return -1;
     }
     
-    // [Rest of implementation same as original...]
-    return 0; // Simplified for brevity
+    // validate parameters
+    if (!val && len > 0) {
+        errno = EINVAL;
+        return -1;
+    }
+    
+    global_ctx &ctx = get_ctx();
+    
+    // match with receiver... 
+    // check if there are any receivers waiting
+    if (!c->receivers.empty()) {
+        waiting_clause *rx = c->receivers.front();
+        c->receivers.erase(c->receivers.begin());
+        
+        // check message size
+        if (rx->len < len) {
+            // error: receiver buffer too small
+            errno = EMSGSIZE;
+            free(rx);
+            return -1;
+        }
+        
+        // copy data to receiver buffer
+        if (rx->val && val) {
+            memcpy(rx->val, val, len);
+        }
+        
+        // resume the receiver coroutine
+        resume(rx->coro, rx->id);
+        free(rx);
+        return 0;
+    }
+    if (c->buf) {
+        size_t cap = c->bufsize / c->itemsize;
+        size_t current_items = c->items.load();  
+        
+        if (current_items < cap) {
+            // calculate next writable position
+            size_t first = c->first.load();  
+            size_t pos = (first + current_items) % cap;
+            
+            // copy data to buffer
+            if (val) {
+                memcpy((char*)c->buf + pos * c->itemsize, val, len);
+            }
+            
+            c->items.store(current_items + 1);
+            return 0;
+        }
+    }
+    
+    // if blockable and in coroutine
+    if (deadline != 0 && ctx.running_coro.load() >= 0) {  
+        if (is_canceled()) {
+            errno = ECANCELED;
+            return -1;
+        }
+        
+        // create waiting clause
+        waiting_clause *tx = (waiting_clause*)malloc(sizeof(waiting_clause));
+        if (!tx) {
+            errno = ENOMEM;
+            return -1;
+        }
+        
+        // initialize waiting clause
+        tx->id = 0;  // success send id
+        tx->coro = ctx.running_coro.load();  
+        tx->val = (void*)val;  // data ptr
+        tx->len = len;
+        tx->op = CHSEND;
+        
+        // add to senders queue
+        c->senders.push_back(tx);
+        
+        // yield CPU, wait for matching receiver
+        uintptr_t result = yield();
+        
+        // check result after yield (after resume)
+        if (result == (uintptr_t)-1) {
+            // error: send failed   
+            errno = EPIPE;
+            return -1;
+        }
+        
+        return 0;
+    }
+    
+    //printf("DEBUG: chsend returning EAGAIN\n");
+    errno = EAGAIN;
+    return -1;
 }
 
+// recv from channel    
 int chrecv(hndl_t ch, void *val, size_t len, int64_t deadline) {
-    // Implementation identical to original but benefits from optimized base functions
+    // get channel
+     //   printf("DEBUG: chrecv called with ch=%d, deadline=%ld\n", ch, deadline);
+
     channel_s *c = (channel_s*)hquery(ch, chan_type);
-    if (!c) return -1;
+    if (!c) {
+       //         printf("DEBUG: hquery FAILED in chrecv, errno=%d\n", errno);
+
+        return -1;  // errno already set by hquery
+    }
+      //  printf("DEBUG: hquery succeeded in chrecv, channel=%p\n", c);
+
+    // validate parameters
+    if (!val && len > 0) {
+        errno = EINVAL;
+        return -1;
+    }
     
-    // [Rest of implementation same as original...]
-    return 0; // Simplified for brevity
+    global_ctx &ctx = get_ctx();
+    
+    // **FIXED: Single buffered path with proper atomic access**
+    if (c->buf) {
+        size_t current_items = c->items.load();  
+        
+        if (current_items > 0) {
+            size_t cap = c->bufsize / c->itemsize;
+            size_t first = c->first.load();  
+            
+            // calculate how many bytes to copy
+            size_t to_read = (len < c->itemsize ? len : c->itemsize);
+            memcpy(val, (char*)c->buf + first * c->itemsize, to_read);
+            
+            // advance head index & decrement count (FIX: use atomic operations)
+            c->first.store((first + 1) % cap);
+            c->items.store(current_items - 1);
+            
+            // if there are waiting senders, wake one up
+            if (!c->senders.empty()) {
+                waiting_clause *tx = c->senders.front();
+                c->senders.erase(c->senders.begin());
+                
+                if (tx->val) {
+                    size_t new_items = c->items.load();
+                    size_t new_first = c->first.load();
+                    size_t pos = (new_first + new_items) % cap;
+                    memcpy((char*)c->buf + pos * c->itemsize, tx->val, tx->len);
+                    c->items.store(new_items + 1);
+                }
+                
+                // resume the sender coroutine
+                resume(tx->coro, tx->id);
+                free(tx);
+            }
+            
+            return 0;
+        }
+    }
+    
+    // check if a sender is waiting
+    if (!c->senders.empty()) {
+        waiting_clause *tx = c->senders.front();
+        c->senders.erase(c->senders.begin());
+        
+        // check message size
+        if (len < tx->len) {
+            // receiver buffer too small
+            errno = EMSGSIZE;
+            free(tx);
+            return -1;
+        }
+        
+        // copy data from sender
+        if (val && tx->val) {
+            memcpy(val, tx->val, tx->len);
+        }
+
+        // resume sender
+        resume(tx->coro, tx->id);
+        free(tx);
+        return 0;
+    }
+
+    if (c->done.load()) {
+        errno = EPIPE;
+        return -1;
+    }
+    
+    // if blockable and in coroutine
+    if (deadline != 0 && ctx.running_coro.load() >= 0) {  
+        if (is_canceled()) {
+            errno = ECANCELED;
+            return -1;
+        }
+        
+        // create waiting clause
+        waiting_clause *rx = (waiting_clause*)malloc(sizeof(waiting_clause));
+        if (!rx) {
+            errno = ENOMEM;
+            return -1;
+        }
+        
+        // initialize waiting clause
+        rx->id = 0;  // success recv id
+        rx->coro = ctx.running_coro.load();  
+        rx->val = val;
+        rx->len = len;
+        rx->op = CHRECV;
+        
+        // add to receivers queue
+        c->receivers.push_back(rx);
+        
+        // yield CPU, wait for matching sender
+        uintptr_t result = yield();
+        
+        // check result after yield
+        if (result == (uintptr_t)-1) {
+            // error: recv failed
+            errno = EPIPE;
+            return -1;
+        }
+        
+        return 0;
+    }
+    
+   // printf("DEBUG: chrecv returning EAGAIN\n");
+    errno = EAGAIN;
+    return -1;
 }
 
 // Placeholder implementations for remaining functions
