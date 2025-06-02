@@ -96,3 +96,17 @@ target("threadedServer")
         set_strip("all")
     end
 
+
+target("echoServer")
+    set_kind("binary")
+    add_includedirs("include")
+    add_files("./test/echoServer.cpp")
+    add_files("./src/libco-lite.cpp")
+    
+    if is_mode("debug") then
+        add_defines("DEBUG")
+        set_symbols("debug")
+    else
+        set_optimize("fastest")
+        set_strip("all")
+    end
