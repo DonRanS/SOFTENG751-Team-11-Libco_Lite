@@ -2,7 +2,7 @@
 ## Overview
 This project is part of the **Libco Lite** initiative, developed by **Team 11**. It aims to provide lightweight, efficient, and modular coroutine solutions for Linux-based systems.
 
-Following **libdll** (~~https://libdill.org/structured-concurrency.html~~) (Site down) design philosophy and its API, this high-performance coroutine library offers:
+Following **libdll** (https://sustrik.github.io/libdill/documentation.html) design philosophy and its API, this high-performance coroutine library offers:
 
 - **High-Performance Coroutines**: Stackful coroutines with optimized context switching
 - **Go-Style Channels**: Type-safe communication between coroutines with buffering support  
